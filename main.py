@@ -7,24 +7,80 @@ from langchain.agents import tool, AgentExecutor, create_tool_calling_agent
 # 🚨 修改点 2：导入现代化的聊天模板零件
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
+import requests
+import datetime
 
 # ==========================================
 # 模块 A：定义工具（不变）
 # ==========================================
+
+
 @tool
 def query_calories(food_name: str) -> str:
-    """查询常见食物的热量。输入食物名称，返回每100克的热量。"""
-    food_db = {"苹果": "52千卡", "炸鸡": "300千卡", "西蓝花": "34千卡"}
-    return food_db.get(food_name, "数据库暂无该食物热量信息。")
+    """
+    当用户询问任何食物的热量时，必须调用此工具。
+    输入食物名称，返回每100克的真实预估热量（千卡）。
+    """
+    print(f"\n[🔍 营养师正在联网查询 '{food_name}' 的热量...]")
 
+    try:
+        # 这里我们模拟调用一个公共的营养数据库 API (实际开发中可替换为如 FatSecret API)
+        # 为了保证代码能直接跑通，这里用了一段稍微复杂的动态计算模拟（假设它是一个极简的本地自然语言估算引擎）
+
+        # 常见高频词汇快速映射（模拟数据库的头部缓存）
+        db = {
+            "米饭": 116, "馒头": 223, "面条": 110, "红烧肉": 470, "鸡蛋": 144,
+            "牛奶": 54, "香蕉": 53, "西瓜": 26, "牛肉": 288, "猪肉": 143,
+            "可乐": 43, "薯片": 536, "奶茶": 60, "豆腐": 82, "包子": 223
+        }
+
+        # 如果能在缓存里找到，直接返回
+        for key in db.keys():
+            if key in food_name:
+                return f"经数据库查询，100克【{key}】的大致热量为 {db[key]} 千卡。"
+
+        # 如果找不到，我们用一个小小的算法模拟“大模型猜热量”兜底
+        if "肉" in food_name or "炸" in food_name or "烤" in food_name:
+            return f"未能精准查到【{food_name}】，但根据烹饪方式估算，每100克热量较高，约在 250-400 千卡之间。"
+        elif "菜" in food_name or "瓜" in food_name or "果" in food_name:
+            return f"未能精准查到【{food_name}】，但作为果蔬，每100克热量极低，约在 20-50 千卡之间。"
+        else:
+            return f"抱歉，营养数据库中暂未收录【{food_name}】的精准热量，建议避免过量食用。"
+
+    except Exception as e:
+        return f"查询热量接口失败: {str(e)}"
 @tool
 def calculate_bmi(weight_kg: float, height_m: float) -> str:
     """计算BMI（身体质量指数）。需要输入体重（公斤）和身高（米）。"""
     bmi = weight_kg / (height_m ** 2)
     return f"计算完成，BMI指数为: {bmi:.1f}"
 
-tools = [query_calories, calculate_bmi]
 
+
+@tool
+def record_diet_diary(food_items: str, total_calories_estimate: str) -> str:
+    """
+    当用户明确表示今天吃了什么，或者要求打卡、记录饮食时，必须调用此工具。
+    输入参数1 (food_items): 用户今天吃的食物清单（如：2个汉堡，1杯可乐）。
+    输入参数2 (total_calories_estimate): 你估算出的这顿饭的总热量（如：约800千卡）。
+    返回：记录成功的确认信息。
+    """
+    print(f"\n[✍️ 营养师正在为您记录饮食日记...]")
+
+    # 获取今天的日期
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 要写进文件里的内容
+    record_content = f"[{today_str}] 进食记录：{food_items} | 估算总热量：{total_calories_estimate}\n"
+
+    try:
+        # 打开一个叫 diet_diary.txt 的文件（如果没有会自动创建），模式是 'a' (追加，不会覆盖以前的)
+        with open("diet_diary.txt", "a", encoding="utf-8") as f:
+            f.write(record_content)
+        return "饮食记录已成功保存到您的专属健康档案中！"
+    except Exception as e:
+        return f"保存记录失败：{str(e)}"
+tools = [query_calories, calculate_bmi, record_diet_diary]
 # ==========================================
 # 模块 B：定义记忆
 # ==========================================
